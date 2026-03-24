@@ -17,8 +17,6 @@ jobs:
       uses: actions/checkout@v4
 
     - name: Initialization environment
-      env:
-        DEBIAN_FRONTEND: noninteractive
       run: |
         sudo rm -rf /etc/apt/sources.list.d/* /usr/share/dotnet /usr/local/lib/android /opt/ghc
         sudo -E apt-get -qq update
@@ -28,8 +26,7 @@ jobs:
         sudo timedatectl set-timezone "$TZ"
 
     - name: Clone source code
-      run: |
-        git clone $REPO_URL -b $REPO_BRANCH openwrt
+      run: git clone $REPO_URL -b $REPO_BRANCH openwrt
 
     - name: Update & Install feeds
       run: |
@@ -40,21 +37,15 @@ jobs:
     - name: Load custom configuration
       run: |
         cd openwrt
-        # 这种 echo 写法可以彻底避开 YAML 缩进带来的干扰
-        echo "CONFIG_TARGET_mediatek=y" > .config
-        echo "CONFIG_TARGET_mediatek_filogic=y" >> .config
-        echo "CONFIG_TARGET_mediatek_filogic_DEVICE_jdcloud_re-ss-01=y" >> .config
-        echo "CONFIG_PACKAGE_luci=y" >> .config
-        echo "CONFIG_LUCI_LANG_zh_Hans=y" >> .config
-        echo "CONFIG_PACKAGE_luci-app-turboacc=y" >> .config
-        echo "CONFIG_PACKAGE_luci-app-upnp=y" >> .config
+        # 使用 printf 确保没有任何前导空格干扰
+        printf "CONFIG_TARGET_mediatek=y\nCONFIG_TARGET_mediatek_filogic=y\nCONFIG_TARGET_mediatek_filogic_DEVICE_jdcloud_re-ss-01=y\nCONFIG_PACKAGE_luci=y\nCONFIG_LUCI_LANG_zh_Hans=y\nCONFIG_PACKAGE_luci-app-turboacc=y\nCONFIG_PACKAGE_luci-app-upnp=y\n" > .config
+        
+        # 【关键调试步骤】把配置打印出来，方便我们在日志里检查是否真的顶格了
+        echo "---- Current Config ----"
+        cat .config
+        echo "-----------------------"
         
         make defconfig
-
-    - name: Download package
-      run: |
-        cd openwrt
-        make download -j8
 
     - name: Compile the firmware
       run: |
