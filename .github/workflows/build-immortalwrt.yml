@@ -37,15 +37,23 @@ jobs:
     - name: Load custom configuration
       run: |
         cd openwrt
-        # 使用 printf 确保没有任何前导空格干扰
-        printf "CONFIG_TARGET_mediatek=y\nCONFIG_TARGET_mediatek_filogic=y\nCONFIG_TARGET_mediatek_filogic_DEVICE_jdcloud_re-ss-01=y\nCONFIG_PACKAGE_luci=y\nCONFIG_LUCI_LANG_zh_Hans=y\nCONFIG_PACKAGE_luci-app-turboacc=y\nCONFIG_PACKAGE_luci-app-upnp=y\n" > .config
-        
-        # 【关键调试步骤】把配置打印出来，方便我们在日志里检查是否真的顶格了
-        echo "---- Current Config ----"
-        cat .config
-        echo "-----------------------"
+        # 核心修正：确保型号代码拼写完全正确且无空格
+        cat <<EOT > .config
+        CONFIG_TARGET_mediatek=y
+        CONFIG_TARGET_mediatek_filogic=y
+        CONFIG_TARGET_DEVICE_mediatek_filogic_DEVICE_jdcloud_re-ss-01=y
+        CONFIG_PACKAGE_luci=y
+        CONFIG_LUCI_LANG_zh_Hans=y
+        CONFIG_PACKAGE_luci-app-turboacc=y
+        CONFIG_PACKAGE_luci-app-upnp=y
+        EOT
         
         make defconfig
+
+    - name: Download package
+      run: |
+        cd openwrt
+        make download -j8
 
     - name: Compile the firmware
       run: |
