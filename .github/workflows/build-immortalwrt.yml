@@ -40,18 +40,18 @@ jobs:
     - name: Load custom configuration
       run: |
         cd openwrt
-        # 用覆盖式写入取代追加写入，确保目标唯一
+        # 注意：下面的配置必须顶格写，绝对不能有前导空格
         cat <<EOF > .config
-        CONFIG_TARGET_mediatek=y
-        CONFIG_TARGET_mediatek_filogic=y
-        CONFIG_TARGET_mediatek_filogic_DEVICE_jdcloud_re-ss-01=y
-        CONFIG_PACKAGE_luci=y
-        CONFIG_LUCI_LANG_zh_Hans=y
-        CONFIG_PACKAGE_luci-app-turboacc=y
-        CONFIG_PACKAGE_luci-app-upnp=y
-        EOF
+CONFIG_TARGET_mediatek=y
+CONFIG_TARGET_mediatek_filogic=y
+CONFIG_TARGET_mediatek_filogic_DEVICE_jdcloud_re-ss-01=y
+CONFIG_PACKAGE_luci=y
+CONFIG_LUCI_LANG_zh_Hans=y
+CONFIG_PACKAGE_luci-app-turboacc=y
+CONFIG_PACKAGE_luci-app-upnp=y
+EOF
         
-        # 强制扩充配置以满足依赖
+        # 强制刷新配置
         make defconfig
 
     - name: Download package
