@@ -40,17 +40,18 @@ jobs:
     - name: Load custom configuration
       run: |
         cd openwrt
-        # 修正：MT7981 在最新源码中属于 filogic 子目标
-        echo "CONFIG_TARGET_mediatek=y" >> .config
-        echo "CONFIG_TARGET_mediatek_filogic=y" >> .config
-        echo "CONFIG_TARGET_mediatek_filogic_DEVICE_jdcloud_re-ss-01=y" >> .config
+        # 用覆盖式写入取代追加写入，确保目标唯一
+        cat <<EOF > .config
+        CONFIG_TARGET_mediatek=y
+        CONFIG_TARGET_mediatek_filogic=y
+        CONFIG_TARGET_mediatek_filogic_DEVICE_jdcloud_re-ss-01=y
+        CONFIG_PACKAGE_luci=y
+        CONFIG_LUCI_LANG_zh_Hans=y
+        CONFIG_PACKAGE_luci-app-turboacc=y
+        CONFIG_PACKAGE_luci-app-upnp=y
+        EOF
         
-        # 常用基础插件
-        echo "CONFIG_PACKAGE_luci=y" >> .config
-        echo "CONFIG_LUCI_LANG_zh_Hans=y" >> .config
-        echo "CONFIG_PACKAGE_luci-app-turboacc=y" >> .config
-        echo "CONFIG_PACKAGE_luci-app-upnp=y" >> .config
-        
+        # 强制扩充配置以满足依赖
         make defconfig
 
     - name: Download package
@@ -63,14 +64,8 @@ jobs:
         cd openwrt
         make -j$(nproc) || make -j1 V=s
 
-    - name: Check files (Debug)
-      run: |
-        echo "Checking bin directory structure..."
-        ls -R openwrt/bin/targets/
-
     - name: Upload firmware to Actions
       uses: actions/upload-artifact@v4
       with:
-        name: ImmortalWrt_JDCloud_Luban
-        # 修正：使用通配符匹配所有子目录下的 bin 文件，确保万无一失
-        path: openwrt/bin/targets/mediatek/*/*.bin
+        name: ImmortalWrt_JDCloud_RE-SS-01
+        path: openwrt/bin/targets/mediatek/filogic/*.bin
