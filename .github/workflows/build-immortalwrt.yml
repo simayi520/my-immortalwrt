@@ -6,7 +6,6 @@ on:
 env:
   REPO_URL: https://github.com/immortalwrt/immortalwrt
   REPO_BRANCH: master
-  CONFIG_FILE: .config
   TZ: Asia/Shanghai
 
 jobs:
@@ -15,7 +14,7 @@ jobs:
 
     steps:
     - name: Checkout
-      uses: actions/checkout@v4 # 已更新为 v4
+      uses: actions/checkout@v4
 
     - name: Initialization environment
       env:
@@ -41,14 +40,17 @@ jobs:
     - name: Load custom configuration
       run: |
         cd openwrt
-        # 强制指定京东云鲁班目标硬件
+        # 修正：MT7981 在最新源码中属于 filogic 子目标
         echo "CONFIG_TARGET_mediatek=y" >> .config
-        echo "CONFIG_TARGET_mediatek_mt7981=y" >> .config
-        echo "CONFIG_TARGET_mediatek_mt7981_DEVICE_jdcloud_re-ss-01=y" >> .config
-        # 核心功能与中文界面
+        echo "CONFIG_TARGET_mediatek_filogic=y" >> .config
+        echo "CONFIG_TARGET_mediatek_filogic_DEVICE_jdcloud_re-ss-01=y" >> .config
+        
+        # 常用基础插件
         echo "CONFIG_PACKAGE_luci=y" >> .config
         echo "CONFIG_LUCI_LANG_zh_Hans=y" >> .config
         echo "CONFIG_PACKAGE_luci-app-turboacc=y" >> .config
+        echo "CONFIG_PACKAGE_luci-app-upnp=y" >> .config
+        
         make defconfig
 
     - name: Download package
@@ -61,8 +63,14 @@ jobs:
         cd openwrt
         make -j$(nproc) || make -j1 V=s
 
+    - name: Check files (Debug)
+      run: |
+        echo "Checking bin directory structure..."
+        ls -R openwrt/bin/targets/
+
     - name: Upload firmware to Actions
-      uses: actions/upload-artifact@v4 # 已更新为 v4
+      uses: actions/upload-artifact@v4
       with:
         name: ImmortalWrt_JDCloud_Luban
-        path: openwrt/bin/targets/mediatek/mt7981/*.bin
+        # 修正：使用通配符匹配所有子目录下的 bin 文件，确保万无一失
+        path: openwrt/bin/targets/mediatek/*/*.bin
