@@ -37,7 +37,7 @@ jobs:
     - name: Load custom configuration
       run: |
         cd openwrt
-        # 核心修正：确保型号代码拼写完全正确且无空格
+        # 1. 写入京东云核心配置
         cat <<EOT > .config
         CONFIG_TARGET_mediatek=y
         CONFIG_TARGET_mediatek_filogic=y
@@ -47,6 +47,10 @@ jobs:
         CONFIG_PACKAGE_luci-app-turboacc=y
         CONFIG_PACKAGE_luci-app-upnp=y
         EOT
+        
+        # 2. 核心修正：强制关闭默认的 OpenWrt One 选项，防止它抢占文件名
+        echo "# CONFIG_TARGET_DEVICE_mediatek_filogic_DEVICE_openwrt_one-nor is not set" >> .config
+        echo "# CONFIG_TARGET_DEVICE_mediatek_filogic_DEVICE_openwrt_one-snand is not set" >> .config
         
         make defconfig
 
@@ -63,5 +67,5 @@ jobs:
     - name: Upload firmware to Actions
       uses: actions/upload-artifact@v4
       with:
-        name: ImmortalWrt_JDCloud_RE-SS-01
+        name: ImmortalWrt_JDCloud_RE-SS-01_FINAL
         path: openwrt/bin/targets/mediatek/filogic/*.bin
