@@ -1,4 +1,4 @@
-name: Build ImmortalWrt for JDCloud RE-SS-01 (Correct Platform)
+name: Build ImmortalWrt for JDCloud RE-SS-01 (Qualcomm Platform)
 
 on:
   workflow_dispatch:
@@ -37,7 +37,7 @@ jobs:
     - name: Load custom configuration
       run: |
         cd openwrt
-        # 彻底修改为正确的 Qualcomm 平台
+        # 核心修正：必须使用 qualcommax 平台，不能用 mediatek
         cat <<EOT > .config
         CONFIG_TARGET_qualcommax=y
         CONFIG_TARGET_qualcommax_ipq60xx=y
@@ -45,6 +45,7 @@ jobs:
         CONFIG_PACKAGE_luci=y
         CONFIG_LUCI_LANG_zh_Hans=y
         CONFIG_PACKAGE_luci-app-turboacc=y
+        CONFIG_PACKAGE_luci-app-upnp=y
         EOT
         make defconfig
 
@@ -61,5 +62,5 @@ jobs:
     - name: Upload firmware to Actions
       uses: actions/upload-artifact@v4
       with:
-        name: ImmortalWrt_JDCloud_RE-SS-01_Final
+        name: ImmortalWrt_JDCloud_RE-SS-01_SUCCESS
         path: openwrt/bin/targets/qualcommax/ipq60xx/*.bin
