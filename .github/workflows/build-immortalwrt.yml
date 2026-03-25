@@ -1,4 +1,4 @@
-name: Build ImmortalWrt for JDCloud RE-SS-01
+name: Build ImmortalWrt for JDCloud RE-SS-01 (Correct Platform)
 
 on:
   workflow_dispatch:
@@ -37,21 +37,15 @@ jobs:
     - name: Load custom configuration
       run: |
         cd openwrt
-        # 1. 写入京东云核心配置
+        # 彻底修改为正确的 Qualcomm 平台
         cat <<EOT > .config
-        CONFIG_TARGET_mediatek=y
-        CONFIG_TARGET_mediatek_filogic=y
-        CONFIG_TARGET_DEVICE_mediatek_filogic_DEVICE_jdcloud_re-ss-01=y
+        CONFIG_TARGET_qualcommax=y
+        CONFIG_TARGET_qualcommax_ipq60xx=y
+        CONFIG_TARGET_qualcommax_ipq60xx_DEVICE_jdcloud_re-ss-01=y
         CONFIG_PACKAGE_luci=y
         CONFIG_LUCI_LANG_zh_Hans=y
         CONFIG_PACKAGE_luci-app-turboacc=y
-        CONFIG_PACKAGE_luci-app-upnp=y
         EOT
-        
-        # 2. 核心修正：强制关闭默认的 OpenWrt One 选项，防止它抢占文件名
-        echo "# CONFIG_TARGET_DEVICE_mediatek_filogic_DEVICE_openwrt_one-nor is not set" >> .config
-        echo "# CONFIG_TARGET_DEVICE_mediatek_filogic_DEVICE_openwrt_one-snand is not set" >> .config
-        
         make defconfig
 
     - name: Download package
@@ -67,5 +61,5 @@ jobs:
     - name: Upload firmware to Actions
       uses: actions/upload-artifact@v4
       with:
-        name: ImmortalWrt_JDCloud_RE-SS-01_FINAL
-        path: openwrt/bin/targets/mediatek/filogic/*.bin
+        name: ImmortalWrt_JDCloud_RE-SS-01_Final
+        path: openwrt/bin/targets/qualcommax/ipq60xx/*.bin
