@@ -1,4 +1,4 @@
-name: Build ImmortalWrt for JDCloud RE-SS-01 (Qualcomm Platform)
+name: Build ImmortalWrt for JDCloud RE-SS-01
 
 on:
   workflow_dispatch:
@@ -6,6 +6,8 @@ on:
 env:
   REPO_URL: https://github.com/immortalwrt/immortalwrt
   REPO_BRANCH: master
+  CONFIG_FILE: .config
+  DIY_SH: diy.sh
   TZ: Asia/Shanghai
 
 jobs:
@@ -24,9 +26,15 @@ jobs:
         sudo -E apt-get -qq autoremove --purge
         sudo -E apt-get -qq clean
         sudo timedatectl set-timezone "$TZ"
+        sudo mkdir -p /workdir
+        sudo chown $USER:$GROUPS /workdir
 
     - name: Clone source code
-      run: git clone $REPO_URL -b $REPO_BRANCH openwrt
+      working-directory: /workdir
+      run: |
+        df -hT $PWD
+        git clone $REPO_URL -b $REPO_BRANCH openwrt
+        ln -sf /workdir/openwrt $GITHUB_WORKSPACE/openwrt
 
     - name: Update & Install feeds
       run: |
@@ -37,30 +45,41 @@ jobs:
     - name: Load custom configuration
       run: |
         cd openwrt
-        # 核心修正：必须使用 qualcommax 平台，不能用 mediatek
-        cat <<EOT > .config
-        CONFIG_TARGET_qualcommax=y
-        CONFIG_TARGET_qualcommax_ipq60xx=y
-        CONFIG_TARGET_qualcommax_ipq60xx_DEVICE_jdcloud_re-ss-01=y
-        CONFIG_PACKAGE_luci=y
-        CONFIG_LUCI_LANG_zh_Hans=y
-        CONFIG_PACKAGE_luci-app-turboacc=y
-        CONFIG_PACKAGE_luci-app-upnp=y
-        EOT
+        # 核心：直接生成针对亚瑟的配置文件
+        echo "CONFIG_TARGET_ipq60xx=y" > .config
+        echo "CONFIG_TARGET_ipq60xx_generic=y" >> .config
+        echo "CONFIG_TARGET_ipq60xx_generic_DEVICE_jdcloud_re-ss-01=y" >> .config
+        # 基础插件和中文界面
+        echo "CONFIG_PACKAGE_luci=y" >> .config
+        echo "CONFIG_LUCI_LANG_zh_Hans=y" >> .config
+        echo "CONFIG_PACKAGE_luci-app-turboacc=y" >> .config
+        echo "CONFIG_PACKAGE_luci-app-upnp=y" >> .config
+        
         make defconfig
 
     - name: Download package
+      id: package
       run: |
         cd openwrt
         make download -j8
+        find dl -size -1024c -exec ls -l {} \;
+        find dl -size -1024c -exec rm -f {} \;
 
     - name: Compile the firmware
+      id: compile
       run: |
         cd openwrt
-        make -j$(nproc) || make -j1 V=s
+        echo -e "$(nproc) thread compile"
+        make -j$(nproc) || make -j1 || make -j1 V=s
+        echo "status=success" >> $GITHUB_OUTPUT
 
-    - name: Upload firmware to Actions
+    - name: Check space usage
+      if: (!cancelled())
+      run: df -hT
+
+    - name: Upload artifact
       uses: actions/upload-artifact@v4
+      if: steps.compile.outputs.status == 'success'
       with:
-        name: ImmortalWrt_JDCloud_RE-SS-01_SUCCESS
-        path: openwrt/bin/targets/qualcommax/ipq60xx/*.bin
+        name: ImmortalWrt_JDCloud_RE-SS-01
+        path: openwrt/bin/targets/ipq60xx/generic/*.bin
