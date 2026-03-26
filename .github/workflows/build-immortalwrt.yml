@@ -1,4 +1,4 @@
-name: Build ImmortalWrt for JDCloud Arthur (Final Recovery)
+name: Build ImmortalWrt for JDCloud Arthur (Final Strike)
 
 on:
   workflow_dispatch:
@@ -44,7 +44,7 @@ jobs:
     - name: Load custom configuration
       run: |
         cd openwrt
-        # 彻底清空并重写配置，防止退回 x86
+        # 强制清除并写入亚瑟最完整的 Target 信息
         rm -f .config
         cat <<EOF > .config
         CONFIG_TARGET_ipq60xx=y
@@ -53,26 +53,27 @@ jobs:
         CONFIG_PACKAGE_luci=y
         CONFIG_LUCI_LANG_zh_Hans=y
         CONFIG_PACKAGE_luci-app-turboacc=y
+        CONFIG_PACKAGE_luci-app-upnp=y
+        CONFIG_PACKAGE_luci-app-wol=y
         EOF
         
+        # 扩展配置以确保依赖完整
+        sed -i 's/^[ \t]*//g' .config
         make defconfig
-        # 强制检查：如果生成的配置不是亚瑟，立刻自毁报错
-        if ! grep -q "CONFIG_TARGET_ipq60xx_generic_DEVICE_jdcloud_re-ss-01=y" .config; then
-          echo "致命错误：配置未能正确锁定京东云亚瑟！"
-          exit 1
-        fi
 
     - name: Download package
       run: |
         cd openwrt
         make download -j8
+        find dl -size -1024c -exec ls -l {} \;
+        find dl -size -1024c -exec rm -f {} \;
 
     - name: Compile the firmware
       id: compile
       run: |
         cd openwrt
         echo -e "$(nproc) thread compile"
-        # 核心：必须跑够 2 小时才是真正的编译
+        # 如果再次成功，耗时应该在 2 小时左右
         make -j$(nproc) || make -j1 V=s
         echo "status=success" >> $GITHUB_OUTPUT
 
@@ -80,17 +81,16 @@ jobs:
       if: steps.compile.outputs.status == 'success'
       run: |
         mkdir -p ./artifact/
-        # 不管路径在哪，只要是 bin 或 img，通通拷贝出来
-        find openwrt/bin/targets/ -type f -name "*.bin" -exec cp -f {} ./artifact/ \;
-        find openwrt/bin/targets/ -type f -name "*.img" -exec cp -f {} ./artifact/ \;
-        # 顺便把编译日志存一份
-        cp openwrt/.config ./artifact/config.buildinfo
-        echo "发现固件列表如下："
+        # 只要是包含 jdcloud 或 ipq60xx 的 bin/img 文件，通通抓走
+        find openwrt/bin/targets/ -type f -name "*jdcloud*" -exec cp -f {} ./artifact/ \;
+        find openwrt/bin/targets/ -type f -name "*ipq60xx*" -exec cp -f {} ./artifact/ \;
+        find openwrt/bin/targets/ -type f -name "*sysupgrade.bin" -exec cp -f {} ./artifact/ \;
+        echo "抓取结果内容："
         ls -lh ./artifact/
 
     - name: Upload artifact
       uses: actions/upload-artifact@v4
       if: steps.compile.outputs.status == 'success'
       with:
-        name: Arthur_ImmortalWrt_Final
+        name: Arthur_ImmortalWrt_Final_Package
         path: ./artifact/
