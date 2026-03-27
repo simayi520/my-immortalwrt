@@ -1,4 +1,4 @@
-name: Build ImmortalWrt for JDCloud Arthur (Final Fix - Qualcomm)
+name: Build ImmortalWrt for JDCloud RE-SS-01 (Arthur-Specific)
 
 on:
   workflow_dispatch:
@@ -45,29 +45,16 @@ jobs:
       run: |
         cd openwrt
         rm -f .config
-        # 这一步是核心：必须包含完整的 Target 树状结构配置
-        cat <<EOF > .config
-        CONFIG_TARGET_ipq60xx=y
-        CONFIG_TARGET_ipq60xx_generic=y
-        CONFIG_TARGET_ipq60xx_generic_DEVICE_jdcloud_re-ss-01=y
-        CONFIG_HAS_SUBTARGET_GENERIC=y
-        CONFIG_TARGET_BOARD="ipq60xx"
-        CONFIG_TARGET_SUBTARGET="generic"
-        CONFIG_TARGET_PROFILE="DEVICE_jdcloud_re-ss-01"
-        CONFIG_PACKAGE_luci=y
-        CONFIG_LUCI_LANG_zh_Hans=y
-        CONFIG_PACKAGE_luci-app-turboacc=y
-        EOF
+        # 强制注入高通 IPQ60xx 和亚瑟的配置树
+        echo "CONFIG_TARGET_ipq60xx=y" >> .config
+        echo "CONFIG_TARGET_ipq60xx_generic=y" >> .config
+        echo "CONFIG_TARGET_ipq60xx_generic_DEVICE_jdcloud_re-ss-01=y" >> .config
+        echo "CONFIG_PACKAGE_luci=y" >> .config
+        echo "CONFIG_LUCI_LANG_zh_Hans=y" >> .config
+        echo "CONFIG_PACKAGE_luci-app-turboacc=y" >> .config
         
-        # 强制修正：确保没有 Mediatek 的残留
-        sed -i '/mediatek/d' .config
+        # 这一步非常关键：让编译器根据上述种子配置补全所有依赖
         make defconfig
-        
-        # 最终检查：如果不包含 ipq60xx，直接报错，省得浪费 2 小时
-        if ! grep -q "CONFIG_TARGET_ipq60xx=y" .config; then
-          echo "错误：目标架构锁定失败，正在停止编译以节省时间！"
-          exit 1
-        fi
 
     - name: Download package
       run: |
@@ -78,22 +65,27 @@ jobs:
       id: compile
       run: |
         cd openwrt
-        # 由于是真正的 Qualcomm 编译，耗时仍会在 2 小时左右
+        # 这里会耗时约 2 小时，如果低于 1 小时说明架构选错了
         make -j$(nproc) || make -j1 V=s
         echo "status=success" >> $GITHUB_OUTPUT
 
-    - name: Organize files
+    - name: Organize files (深度收割)
       if: steps.compile.outputs.status == 'success'
       run: |
         mkdir -p ./artifact/
-        # 只抓取包含 ipq60xx 或 jdcloud 的文件，排除任何 mediatek 内容
-        find openwrt/bin/targets/ipq60xx/ -type f \( -name "*jdcloud*" -o -name "*sysupgrade*" \) -exec cp -f {} ./artifact/ \;
-        echo "最终抓取的亚瑟固件清单："
+        # 重点：直接去高通平台的输出目录拿文件
+        # 如果这个目录下没文件，说明真的没编对
+        if [ -d "openwrt/bin/targets/ipq60xx/generic/" ]; then
+          cp -f openwrt/bin/targets/ipq60xx/generic/*jdcloud* ./artifact/ || true
+          cp -f openwrt/bin/targets/ipq60xx/generic/*sysupgrade.bin ./artifact/ || true
+        fi
+        # 顺便把生成的 .config 也带出来供我们检查
+        cp openwrt/.config ./artifact/config.buildinfo
         ls -lh ./artifact/
 
     - name: Upload artifact
       uses: actions/upload-artifact@v4
       if: steps.compile.outputs.status == 'success'
       with:
-        name: ImmortalWrt_Arthur_REAL_Qualcomm
+        name: Arthur_Qualcomm_Firmware
         path: ./artifact/
