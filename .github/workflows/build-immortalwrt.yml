@@ -1,4 +1,4 @@
-name: Build ImmortalWrt for JDCloud Arthur (Final Collection)
+name: Build ImmortalWrt for JDCloud Arthur (Final Fix - Qualcomm)
 
 on:
   workflow_dispatch:
@@ -45,16 +45,29 @@ jobs:
       run: |
         cd openwrt
         rm -f .config
+        # 这一步是核心：必须包含完整的 Target 树状结构配置
         cat <<EOF > .config
         CONFIG_TARGET_ipq60xx=y
         CONFIG_TARGET_ipq60xx_generic=y
         CONFIG_TARGET_ipq60xx_generic_DEVICE_jdcloud_re-ss-01=y
+        CONFIG_HAS_SUBTARGET_GENERIC=y
+        CONFIG_TARGET_BOARD="ipq60xx"
+        CONFIG_TARGET_SUBTARGET="generic"
+        CONFIG_TARGET_PROFILE="DEVICE_jdcloud_re-ss-01"
         CONFIG_PACKAGE_luci=y
         CONFIG_LUCI_LANG_zh_Hans=y
         CONFIG_PACKAGE_luci-app-turboacc=y
-        CONFIG_PACKAGE_luci-app-upnp=y
         EOF
+        
+        # 强制修正：确保没有 Mediatek 的残留
+        sed -i '/mediatek/d' .config
         make defconfig
+        
+        # 最终检查：如果不包含 ipq60xx，直接报错，省得浪费 2 小时
+        if ! grep -q "CONFIG_TARGET_ipq60xx=y" .config; then
+          echo "错误：目标架构锁定失败，正在停止编译以节省时间！"
+          exit 1
+        fi
 
     - name: Download package
       run: |
@@ -65,28 +78,22 @@ jobs:
       id: compile
       run: |
         cd openwrt
+        # 由于是真正的 Qualcomm 编译，耗时仍会在 2 小时左右
         make -j$(nproc) || make -j1 V=s
         echo "status=success" >> $GITHUB_OUTPUT
-
-    - name: List all files (调试诊断)
-      run: |
-        echo "正在列出所有生成的二进制文件..."
-        find openwrt/bin/targets/ -type f
 
     - name: Organize files
       if: steps.compile.outputs.status == 'success'
       run: |
         mkdir -p ./artifact/
-        # 更加激进的匹配：只要包含 ipq60xx 或 jdcloud 的 bin/img/gz 全部拷贝
-        find openwrt/bin/targets/ -type f \( -name "*ipq60xx*" -o -name "*jdcloud*" -o -name "*sysupgrade*" \) -exec cp -f {} ./artifact/ \;
-        # 额外抓取配置文件
-        cp openwrt/.config ./artifact/config.buildinfo
-        echo "已放入 artifact 文件夹的文件："
+        # 只抓取包含 ipq60xx 或 jdcloud 的文件，排除任何 mediatek 内容
+        find openwrt/bin/targets/ipq60xx/ -type f \( -name "*jdcloud*" -o -name "*sysupgrade*" \) -exec cp -f {} ./artifact/ \;
+        echo "最终抓取的亚瑟固件清单："
         ls -lh ./artifact/
 
     - name: Upload artifact
       uses: actions/upload-artifact@v4
       if: steps.compile.outputs.status == 'success'
       with:
-        name: ImmortalWrt_Arthur_Fixed
+        name: ImmortalWrt_Arthur_REAL_Qualcomm
         path: ./artifact/
